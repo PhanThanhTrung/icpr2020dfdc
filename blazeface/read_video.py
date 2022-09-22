@@ -31,10 +31,17 @@ class VideoReader:
             seed: random seed for jittering; if you set this to a fixed value,
                 you probably want to set it only on the first video 
         """
-        assert num_frames > 0
 
         capture = cv2.VideoCapture(path)
-        frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        all_frame = []
+        while True:
+            ret, frame = capture.read()
+            if not ret:
+                break
+            frame = self._postprocess_frame(frame)
+            all_frame.append(frame)
+        all_frame = np.stack(all_frame)
+        frame_count = all_frame.shape[0]
         if frame_count <= 0: return None
 
         frame_idxs = np.linspace(0, frame_count - 1, num_frames, endpoint=True, dtype=np.int)
@@ -43,10 +50,9 @@ class VideoReader:
             np.random.seed(seed)
             jitter_offsets = np.random.randint(-jitter, jitter, len(frame_idxs))
             frame_idxs = np.clip(frame_idxs + jitter_offsets, 0, frame_count - 1)
-
-        result = self._read_frames_at_indices(path, capture, frame_idxs)
+        result = all_frame[frame_idxs,...]
         capture.release()
-        return result
+        return result, frame_idxs.tolist()
 
     def read_random_frames(self, path, num_frames, seed=None):
         """Picks the frame indices at random.
